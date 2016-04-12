@@ -90,6 +90,7 @@ $ grep RockDoveHPG_35561 pigeonW.out
 RockDoveHPG_35561       scaffold236     99.47   943     5       0       345     1287    653453  652511  0.0     1714
 ```
 #### Potential Primers
+Used Primer3Plus and the BLAST results to design primers. 
 ```
 #Tm=60C Product Size=277bp
 >RockDoveHPG_35561_776F
