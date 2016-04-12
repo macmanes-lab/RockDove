@@ -84,11 +84,9 @@ RockDoveHPG_21234       scaffold236     98.54   1715    11      6       413     
 and 
 
 ```
-
-$ grep RockDoveHPG_35561 pigeonW.out
-RockDoveHPG_35561       scaffold236     99.47   943     5       0       345     1287    653453  652511  0.0     1714
-
 $ cat HPG.matrix.counts | grep -w RockDoveHPG_35561
 RockDoveHPG_35561	0	0	0	0	0	0	110.91	333.576	508.825	125	1	2	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+$ grep RockDoveHPG_35561 pigeonW.out
+RockDoveHPG_35561       scaffold236     99.47   943     5       0       345     1287    653453  652511  0.0     1714
 ```
 
