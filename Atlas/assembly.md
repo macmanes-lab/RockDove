@@ -32,6 +32,9 @@ transfuse -t 30 -i 0.98 -o transfuse_mouse \
 -a BinPacker.fa,trinity_HPG_atlas.Trinity.fasta
 ```
 
+#### Filtering
+
+
 ```bash
 kallisto index -i kallisto.idx transfuse_mouse.fasta
 kallisto quant -t 32 -i kallisto.idx -o kallisto_orig hpg.axis.1.fq hpg.axis.2.fq
@@ -43,6 +46,8 @@ cat kallist salist | sort -u > uniq_list
 python filter.py transfuse_mouse.fasta uniq_list > RockDove.HPG.v1.0.1.fa
 awk '/^>/{$0=">'RockDoveHPG'_"++i}1' RockDove.HPG.v1.0.1.fa > RockDove.HPG.v1.0.2.fasta
 ```
+#### Annotation
+
 
 ```bash
 dammit annotate ../assembly/RockDove.HPG.v1.0.2.fasta \
