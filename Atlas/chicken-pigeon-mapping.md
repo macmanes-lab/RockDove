@@ -1,6 +1,7 @@
 #### LASTAL+ Search
 
 ```bash
+curl -LO ftp://ftp.ncbi.nih.gov/genomes/Gallus_gallus/RNA/rna.fa.gz
 lastdb chicken rna.fa
 lastal+ -K 1 -P 50 -o chicken.dove.blast ../../blast/chicken ../../../assembly/RockDove.HPG.v1.0.3.fasta
 ```
