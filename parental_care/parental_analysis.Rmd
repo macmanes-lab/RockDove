@@ -1,0 +1,246 @@
+####Very rough - certainly MANY issues exist.. 
+
+---
+title: "full_parental.19apr18.Rmd"
+author: "MacManes"
+date: "4/19/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up env
+
+
+```{r import libs, cache=TRUE, echo =FALSE}
+library(edgeR)
+library(tximport)
+library(readr)
+library(locfit)
+library(statmod)
+library(gplots)
+library(topGO)
+library(Rgraphviz)
+library(beanplot)
+library(knitr)
+```
+
+## Tximport
+```{r tximport, cache=TRUE}
+#dir <- setwd('/Volumes/4TB_1/')
+dir <- setwd('/Users/macmnaes/Dropbox')
+tx2gene <- read.table(file.path(dir, "RockDove_working/parental/parental1.tximport"), header=T)
+all_samples <- read.table(file.path(dir, "RockDove_working/parental/19Apr18.list"), header=F)
+all_files <- file.path(dir, "RockDove_working/mapping/files/parental", all_samples$V1, "quant.sf")
+names(all_files) <- paste0(all_samples$V1)
+txi.all <- tximport(all_files, type = "salmon", tx2gene = tx2gene, dropInfReps=TRUE)
+cts <- txi.all$counts
+normMat <- txi.all$length
+normMat <- normMat/exp(rowMeans(log(normMat)))
+o <- log(calcNormFactors(cts/normMat)) + log(colSums(cts/normMat))
+
+```
+## Add pheonotypes
+
+```{r phenotype, cache=TRUE}
+
+meta_final <- read_csv("RockDove_working/parental/Parental_meta_final.csv")
+sex <- meta_final$sex
+tissue <- meta_final$tissue
+stage <- meta_final$stage
+day <- meta_final$day
+treatment <- meta_final$treatment
+
+```
+
+## Export file with pseudocounts
+```{r export file, cache=TRUE}
+write.table(cts, file="parentalcounts26Apr.txt", sep = "," , row.names = TRUE)
+```
+
+## Import file with gene names added
+```{r import edited file, cache=TRUE}
+parental_analysis <- read.csv("RockDove_working/parental/parentalcounts28Apr.txt", row.names="Name")
+```
+
+## Make groups
+```{r make groups, cache=TRUE}
+group <- factor(paste(sex,stage,tissue,day,treatment,sep="."))
+final_matrix <- cbind(meta_final, group=group)
+
+## make sure that I have the right groups assigned to the right samples
+parentalobject$samples[ which(parentalobject$samples$group == "female.lay.pit.D1.normal"), ]
+
+```
+
+## Do EdgeR analysis
+
+```{r do edgeR analysis, cache=TRUE}
+parentalobject <- DGEList(counts=parental_analysis[,4:990], genes=parental_analysis[,1:3], group=final_matrix$group)
+
+cpms <- cpm(parentalobject)
+keep_genes <- rowSums(cpms >= 1) >= 10
+
+## Filter the DGEList
+dge <- parentalobject[keep_genes, ]
+
+parentaldesign <- model.matrix(~ group )
+colnames(parentaldesign) <- levels(group)
+parentalobject <- calcNormFactors(parentalobject)
+parentalobject <- estimateCommonDisp(parentalobject)
+parentalobject <- estimateTagwiseDisp(parentalobject)
+parentalobject <- estimateDisp(parentalobject, parentaldesign)
+parentalobject <- estimateGLMCommonDisp(parentalobject, parentaldesign, verbose=TRUE)
+parentalobject <- estimateGLMTrendedDisp(parentalobject, parentaldesign)
+parentalobject <- estimateGLMTagwiseDisp(parentalobject, parentaldesign)
+fit <- glmFit( parentalobject, parentaldesign, robust=T)
+treatres <- glmTreat(fit, lfc = 1)
+```
+
+## Make contrasts
+
+```{r make contrasts, cache=TRUE}
+my.contrasts <- makeContrasts(
+	         FPL_H = female.lay.pit.D1.normal
+	         - female.hatch.pit.D18.normal,
+	         HI_MF = female.inc.hypo.D17.normal
+	         - male.inc.hypo.D17.normal,
+	         PI_MF = female.inc.pit.D17.normal
+	         - male.inc.pit.D17.normal,	         
+	         HH_MF = female.hatch.hypo.D18.normal
+	         - male.hatch.hypo.D18.normal,
+	         PH_MF = female.hatch.pit.D18.normal
+	         - male.hatch.pit.D18.normal,		         
+	         FHL_H = female.lay.hypo.D1.normal
+	         - female.hatch.hypo.D18.normal,
+	         FPI_H = female.inc.pit.D17.normal
+	         - female.hatch.pit.D18.normal,
+	         FHI_H = female.inc.hypo.D17.normal
+	         - female.hatch.hypo.D18.normal,
+	         MPI_H = male.inc.pit.D17.normal
+	         - male.hatch.pit.D18.normal,
+	         MHI_H = male.inc.hypo.D17.normal
+	         - male.hatch.hypo.D18.normal,
+	         MGI_H = male.inc.gonad.D17.normal
+	         - male.hatch.gonad.D18.normal,
+	         FGI_H = male.inc.gonad.D17.normal
+	         - male.hatch.gonad.D18.normal,
+levels=parentaldesign)
+```
+
+
+## find DE Female pit lay to hatch
+
+```{r, Female pit lay to hatch, cache=TRUE}
+
+#n=10,10  
+
+length(which(parentalobject$samples$group == "female.lay.pit.D1.normal"))
+length(which(parentalobject$samples$group == "female.inc.pit.D17.normal"))
+length(which(parentalobject$samples$group == "female.inc.hypo.D17.normal"))
+length(which(parentalobject$samples$group == "female.hatch.pit.D18.normal"))
+
+library(knitr)
+cont <- "FPL_H"
+summary(decideTestsDGE(
+	glmTreat(fit, contrast=my.contrasts[,cont], lfc = 1), 
+	adjust.method="fdr", p.value=0.01))
+kable(topTags(glmTreat(fit, contrast=my.contrasts[,cont]), n=5), digits=2, lfc = 1)
+
+plotMD(glmTreat(fit, contrast=my.contrasts[,cont], lfc=1), main='Female pit hatch to lay', frame.plot=F)
+```
+
+## Beanplots for Female pit lay to hatch
+
+```{r beanplots LH}
+beanplotPIT_LH <- function(vals, genenames)
+{
+  gene <- parentalobject$pseudo.counts[grep(paste("\\b", vals, "\\b", sep=""), parentalobject$genes$entrezid), ]
+  FPL <- log(gene[c(which(parentalobject$samples$group == "female.lay.pit.D1.normal"))]+1)
+  FPH <- log(gene[c(which(parentalobject$samples$group == "female.hatch.pit.D18.normal"))]+1)
+  MPL <- log(gene[c(which(parentalobject$samples$group == "male.lay.pit.D1.normal"))]+1)
+  MPH <- log(gene[c(which(parentalobject$samples$group == "male.hatch.pit.D18.normal"))]+1)
+  each=c(10,10,10,10)
+  values <- c(FPL, FPH, MPL, MPH)
+  treatment <- rep(c('Lay','Lay', 'Hatch', 'Hatch'), each)
+  groupplot <- rep(c('female', 'male', 'female', 'male'), each)
+  title="%s"
+  require(beanplot)
+  beanplot(values ~ treatment*groupplot, ll = 0, beanlinewd=0,
+           main=do.call(sprintf, as.list(c(title, genenames))), side = "both", xlab="", ylab='logTPM',
+           col = list("forestgreen","dodgerblue2","green3","deepskyblue"),
+           axes=F)
+  axis(2)
+  arrows(1.5, median(FPL), 1.5, median(FPH), lwd=2, length=.1)
+  arrows(1.4, median(MPL), 1.4, median(MPH), lwd=2, length=.1)
+}
+```
+
+## find DE Female pit inc to hatch
+```{r, Female pit inc to hatch, cache=TRUE}
+
+#n=11,10  
+
+length(which(parentalobject$samples$group == "female.inc.pit.D17.normal"))
+length(which(parentalobject$samples$group == "female.hatch.pit.D18.normal"))
+
+
+
+cont <- "FPI_H"
+summary(decideTestsDGE(
+	glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), 
+	adjust.method="fdr", p.value=0.05))
+kable(topTags(glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), n=39), digits=2)
+
+plotMD(glmTreat(fit, contrast=my.contrasts[,cont], lfc=.5), main='Female pit inc to hatch', frame.plot=F)
+topTags(glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), n=39)
+```
+
+## Beanplot Female pit inc to hatch
+```{r beanplots IH}
+beanplotPIT_IH <- function(vals, genenames)
+{
+  gene <- parentalobject$pseudo.counts[grep(paste("\\b", vals, "\\b", sep=""), parentalobject$genes$entrezid), ]
+  FPI <- log(gene[c(which(parentalobject$samples$group == "female.inc.pit.D17.normal"))]+1)
+  FPH <- log(gene[c(which(parentalobject$samples$group == "female.hatch.pit.D18.normal"))]+1)
+  MPI <- log(gene[c(which(parentalobject$samples$group == "male.inc.pit.D17.normal"))]+1)
+  MPH <- log(gene[c(which(parentalobject$samples$group == "male.hatch.pit.D18.normal"))]+1)
+  each=c(length(FPI),length(FPH),length(MPI),length(MPH))
+  values <- c(FPI, FPH, MPI, MPH)
+  treatment <- rep(c('Inc','Hatch', 'Inc', 'Hatch'), each)
+  groupplot <- rep(c('female', 'female', 'male', 'male'), each)
+  title="%s"
+  require(beanplot)
+  beanplot(values ~ treatment*groupplot, ll = 0, beanlinewd=0,
+           main=do.call(sprintf, as.list(c(title, genenames))), side = "both", xlab="", ylab='logTPM',
+           col = list("forestgreen","dodgerblue2","green3","deepskyblue"),
+           axes=F)
+  axis(2)
+  arrows(1.5, median(FPI), 1.5, median(FPH), lwd=2, length=.1)
+  arrows(1.4, median(MPI), 1.4, median(MPH), lwd=2, length=.1)
+}
+```
+
+
+
+## find DE Female hypo inc to hatch
+```{r, Female pit inc to hatch, cache=TRUE}
+
+#n=11,10  
+
+length(which(parentalobject$samples$group == "female.inc.hypo.D17.normal"))
+length(which(parentalobject$samples$group == "female.hatch.hypo.D18.normal"))
+
+
+
+cont <- "FHI_H"
+summary(decideTestsDGE(
+	glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), 
+	adjust.method="fdr", p.value=0.05))
+kable(topTags(glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), n=39), digits=2)
+
+plotMD(glmTreat(fit, contrast=my.contrasts[,cont], lfc=.5), main='Female hypo inc to hatch', frame.plot=F)
+topTags(glmTreat(fit, contrast=my.contrasts[,cont], lfc = .5), n=39)
+```
